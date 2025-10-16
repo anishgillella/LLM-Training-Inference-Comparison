@@ -26,17 +26,45 @@
 
 This project covers **ALL modern LLM techniques** used in production today:
 
-### 🔧 **Training Methods**
+### 🔧 **Pre-Training Paradigms** (How Base Models Are Built)
+
+| Method | What It Is | Used In | Complexity | You'll Learn |
+|--------|-----------|---------|------------|--------------|
+| **Causal Language Modeling (CLM)** ⭐ | Predict next token | GPT, Llama, Mistral | ⭐⭐ Medium | Autoregressive generation |
+| **Masked Language Modeling (MLM)** | Predict masked tokens | BERT, RoBERTa | ⭐⭐ Medium | Bidirectional understanding |
+| **Span Corruption** | Predict masked spans | T5, UL2 | ⭐⭐⭐ Hard | Seq-to-seq tasks |
+| **Prefix Language Modeling** | Predict with bidirectional prefix | GLM, ChatGLM | ⭐⭐⭐ Hard | Hybrid approach |
+| **ELECTRA (Replaced Token Detection)** | Detect replaced tokens | ELECTRA | ⭐⭐⭐ Hard | Efficient pre-training |
+| **Contrastive Learning** ⭐ | Learn similar/dissimilar pairs | CLIP, SimCSE, E5 | ⭐⭐⭐ Hard | Representation learning |
+| **Next Sentence Prediction (NSP)** | Predict if sentences follow | BERT (deprecated) | ⭐ Easy | Document understanding |
+
+**Note:** Most modern LLMs use **Causal LM** (GPT-style). MLM is mostly for encoders (BERT-style).
+
+### 🎯 **Fine-Tuning Methods**
 
 | Method | What It Is | When To Use | Complexity | You'll Learn |
 |--------|-----------|-------------|------------|--------------|
-| **Supervised Fine-Tuning (SFT)** | Train on labeled examples | Adapt base model to tasks | ⭐ Easy | Core fine-tuning |
-| **LoRA** | Train small adapter layers | Efficient fine-tuning | ⭐⭐ Medium | Parameter efficiency |
-| **QLoRA** | LoRA + 4-bit quantization | Fine-tune on consumer GPUs | ⭐⭐ Medium | Memory optimization |
-| **Instruction Tuning** | Train on instruction-response pairs | Make models follow commands | ⭐ Easy | Instruction following |
-| **DPO** | Direct preference optimization | Alignment without reward model | ⭐⭐⭐ Hard | Preference learning |
+| **Supervised Fine-Tuning (SFT)** ⭐ | Train on labeled examples | Adapt base model to tasks | ⭐ Easy | Core fine-tuning |
+| **Instruction Tuning** ⭐ | Train on instruction-response pairs | Make models follow commands | ⭐ Easy | Instruction following |
+| **LoRA** ⭐ | Train small adapter layers | Efficient fine-tuning | ⭐⭐ Medium | Parameter efficiency |
+| **QLoRA** ⭐ | LoRA + 4-bit quantization | Fine-tune on consumer GPUs | ⭐⭐ Medium | Memory optimization |
+| **Prefix Tuning** | Train continuous prompts | Lightweight adaptation | ⭐⭐ Medium | Soft prompts |
+| **Adapter Tuning** | Train small adapter modules | Multi-task scenarios | ⭐⭐ Medium | Modular fine-tuning |
+| **Prompt Tuning** | Train soft prompt embeddings | Few-shot learning | ⭐⭐ Medium | Prompt engineering |
+
+### 🧠 **Advanced Training Techniques**
+
+| Method | What It Is | When To Use | Complexity | You'll Learn |
+|--------|-----------|-------------|------------|--------------|
+| **DPO** ⭐ | Direct preference optimization | Alignment without reward model | ⭐⭐⭐ Hard | Preference learning |
 | **RLHF (PPO)** | RL with reward model | Complex alignment | ⭐⭐⭐⭐ Very Hard | Full RLHF pipeline |
-| **Continual Pre-training** | Continue pre-training on domain data | Domain adaptation | ⭐⭐ Medium | Pre-training basics |
+| **Chain-of-Thought (CoT) Tuning** ⭐ | Train with reasoning steps | Improve reasoning | ⭐⭐ Medium | Reasoning abilities |
+| **Self-Instruct** | Generate training data from model | Data augmentation | ⭐⭐ Medium | Self-improvement |
+| **Constitutional AI** | Self-critique and revision | Safety alignment | ⭐⭐⭐ Hard | Self-reflection |
+| **RLAIF** | RL from AI Feedback | Scalable alignment | ⭐⭐⭐⭐ Hard | AI-as-judge |
+| **Curriculum Learning** | Easy → hard training | Improve training stability | ⭐⭐ Medium | Progressive learning |
+| **Multi-Task Learning** | Train on multiple tasks jointly | General-purpose models | ⭐⭐⭐ Hard | Task transfer |
+| **Continual Learning** | Learn without forgetting | Incremental updates | ⭐⭐⭐ Hard | Catastrophic forgetting |
 
 ### 🚀 **Inference Optimization**
 
@@ -475,6 +503,419 @@ Teacher outputs:
 | **Anthropic** | Claude-3-Opus | Claude-3-Haiku | Fast responses |
 
 **This is how the industry works!** Not training big models from scratch, but distilling them efficiently.
+
+---
+
+## 🔬 Deep Dive: Modern Training Paradigms Explained
+
+**You asked about Contrastive Learning, MLM, and other methods - here's the complete landscape!**
+
+### **1. Causal Language Modeling (CLM)** ⭐ **MOST IMPORTANT**
+
+**What:** Predict the next token given previous tokens (left-to-right)
+
+**Used in:**
+- GPT series (GPT-2, GPT-3, GPT-4)
+- Llama 2, Llama 3
+- Mistral, Mixtral
+- PaLM, Gemini
+- **95% of modern generative LLMs**
+
+**How it works:**
+```
+Input:  "The cat sat on the"
+Target: "mat"
+Loss: Cross-entropy on predicting "mat"
+```
+
+**Why it dominates:**
+- ✅ Simple and effective for generation
+- ✅ Scales to trillions of tokens
+- ✅ Natural for autoregressive models
+- ✅ Works with any text corpus
+
+**In your project:** This is what you'll use for fine-tuning!
+
+---
+
+### **2. Masked Language Modeling (MLM)**
+
+**What:** Predict masked tokens using bidirectional context
+
+**Used in:**
+- BERT, RoBERTa, ALBERT
+- ELECTRA (variant)
+- DeBERTa
+- **Encoder-only models**
+
+**How it works:**
+```
+Input:  "The cat [MASK] on the mat"
+Target: "sat"
+Loss: Cross-entropy on predicting masked tokens
+```
+
+**Why it's different:**
+- ✅ Bidirectional context (sees future tokens)
+- ✅ Better for understanding tasks (classification, NER)
+- ❌ Can't generate text naturally
+- ❌ Less common in modern LLMs
+
+**When to use:** Embeddings, classification, information extraction
+
+---
+
+### **3. Contrastive Learning** ⭐ **VERY HOT RIGHT NOW**
+
+**What:** Learn by pulling similar examples together, pushing different ones apart
+
+**Used in:**
+- **CLIP** (OpenAI's vision-language model)
+- **SimCSE** (sentence embeddings)
+- **E5, BGE** (modern embedding models)
+- **Sentence-BERT**
+- **Contriever** (retrieval)
+
+**How it works:**
+```
+Anchor: "A dog playing in the park"
+Positive: "A puppy having fun outside" (similar)
+Negative: "A car driving on the highway" (different)
+
+→ Make anchor closer to positive, farther from negative
+```
+
+**Why it's powerful:**
+- ✅ Learns semantic similarity without labels
+- ✅ Perfect for embeddings and retrieval
+- ✅ Used in RAG systems (retrieve relevant documents)
+- ✅ Multi-modal learning (CLIP: text ↔ images)
+
+**Real-world impact:**
+- Google Search uses contrastive embeddings
+- OpenAI's embedding models (ada-002)
+- Pinecone, Weaviate, Chroma (vector databases)
+
+**In your project:** Week 3-4, build a retrieval system!
+
+---
+
+### **4. Chain-of-Thought (CoT) Tuning** ⭐ **REASONING BREAKTHROUGH**
+
+**What:** Train models to show reasoning steps, not just final answers
+
+**Used in:**
+- GPT-4 (heavily)
+- Claude 3
+- Gemini 1.5
+- **All reasoning-capable models**
+
+**Example:**
+```
+Question: "If 3 apples cost $2, how much do 12 apples cost?"
+
+Without CoT:
+Output: "$8"
+
+With CoT:
+Output: "Let me think step by step:
+1. 3 apples = $2
+2. 12 apples = 4 × 3 apples
+3. Cost = 4 × $2 = $8
+Therefore, 12 apples cost $8."
+```
+
+**Why it's revolutionary:**
+- ✅ Dramatically improves reasoning (up to 40% better)
+- ✅ Makes model "show its work"
+- ✅ Easier to debug and trust
+- ✅ Enables complex multi-step reasoning
+
+**Datasets:**
+- GSM8K (math word problems)
+- MATH dataset
+- TheoremQA
+- Your own CoT-annotated data
+
+**In your project:** Week 5, add CoT to your fine-tuning!
+
+---
+
+### **5. Self-Instruct & Constitutional AI** ⭐ **SELF-IMPROVEMENT**
+
+**Self-Instruct:** Model generates its own training data
+
+**How it works:**
+```
+1. Start with small seed dataset (175 examples)
+2. Model generates new instructions + responses
+3. Filter for quality
+4. Train on generated data
+5. Repeat (bootstrapping!)
+```
+
+**Used by:**
+- Stanford Alpaca (fine-tuned Llama with GPT-3.5 data)
+- Vicuna
+- WizardLM
+- Many open-source instruction models
+
+**Constitutional AI:** Model critiques and improves itself
+
+**How it works:**
+```
+1. Model generates response
+2. Model critiques its own response ("Is this helpful? Safe?")
+3. Model revises based on critique
+4. Train on revised responses
+```
+
+**Used by:**
+- Claude (Anthropic's flagship technique)
+- Increasingly common in safety alignment
+
+**Why it matters:**
+- ✅ Drastically reduces human annotation cost
+- ✅ Scales to millions of examples
+- ✅ Improves safety without RLHF
+- ✅ Self-improving systems
+
+---
+
+### **6. RLAIF (RL from AI Feedback)**
+
+**What:** Use AI (instead of humans) to provide preference feedback
+
+**How it differs from RLHF:**
+```
+RLHF: Human judges → Reward model → PPO
+RLAIF: AI judges (GPT-4) → Reward model → PPO
+```
+
+**Why it's growing:**
+- ✅ 100x cheaper than human feedback
+- ✅ Infinitely scalable
+- ✅ Consistent (humans are inconsistent)
+- ✅ Can use GPT-4 as "super-human" judge
+
+**Used by:**
+- Google (Bard alignment)
+- Many research labs
+- Emerging as standard practice
+
+**Trade-offs:**
+- ⚠️ AI judges have biases
+- ⚠️ May amplify existing model preferences
+- ✅ But much more practical than pure RLHF
+
+---
+
+### **7. ELECTRA (Replaced Token Detection)**
+
+**What:** Instead of masking tokens, replace them with plausible alternatives and detect fakes
+
+**How it works:**
+```
+Original: "The cat sat on the mat"
+Generator: "The cat sat on the car" (replace "mat" → "car")
+Discriminator: Detect that "car" was replaced
+
+→ More efficient than MLM!
+```
+
+**Why it's clever:**
+- ✅ Learns from ALL tokens (not just masked ones)
+- ✅ 30x more sample-efficient than BERT
+- ✅ Smaller models can match larger BERT models
+
+**Used in:**
+- ELECTRA (Google)
+- Some domain-specific models
+- Less common now (CLM dominates)
+
+---
+
+### **8. Curriculum Learning**
+
+**What:** Train on easy examples first, gradually increase difficulty
+
+**Example:**
+```
+Week 1: Short sentences, simple vocabulary
+Week 2: Medium sentences, moderate complexity
+Week 3: Long paragraphs, complex reasoning
+Week 4: Multi-document reasoning
+```
+
+**Why it helps:**
+- ✅ Faster convergence
+- ✅ Better final performance (10-20% improvement)
+- ✅ More stable training
+- ✅ Mimics human learning
+
+**Used in:**
+- DeepMind's models
+- Many vision models
+- Emerging in LLM training
+
+---
+
+### **9. Multi-Task Learning (MTL)**
+
+**What:** Train on multiple tasks simultaneously
+
+**Example:**
+```
+Task 1: Translation (EN → FR)
+Task 2: Summarization
+Task 3: Question answering
+Task 4: Sentiment analysis
+
+→ Train single model on all tasks with shared parameters
+```
+
+**Why it's powerful:**
+- ✅ Task transfer (better generalization)
+- ✅ One model for everything
+- ✅ Efficient inference (deploy once)
+
+**Used in:**
+- T5 (Google: "Text-to-Text Transfer Transformer")
+- mT5 (multilingual)
+- FLAN-T5
+- **General-purpose models**
+
+---
+
+### **10. Prefix/Prompt Tuning & Adapter Tuning**
+
+**What:** Instead of fine-tuning all parameters, only train small additions
+
+**Prefix Tuning:**
+```
+Frozen LLM: [don't update]
+Trainable Prefix: [p1, p2, p3, ...] → prepended to input
+
+→ Only train prefix embeddings (~0.1% of parameters)
+```
+
+**Adapter Tuning:**
+```
+Frozen Layer 1
+↓
+Trainable Adapter (small MLP)
+↓
+Frozen Layer 2
+↓
+Trainable Adapter
+...
+
+→ Only train adapters (~3% of parameters)
+```
+
+**Why use them:**
+- ✅ 100x fewer parameters to train
+- ✅ Can swap adapters for different tasks
+- ✅ Keep base model frozen (easier deployment)
+
+**Used in:**
+- Google's T5
+- Microsoft's adapters
+- Parameter-efficient fine-tuning research
+
+**Comparison:**
+
+| Method | Trainable % | Performance vs Full FT | Ease |
+|--------|-------------|------------------------|------|
+| Full Fine-Tuning | 100% | 100% (baseline) | Easy |
+| LoRA | ~0.5-2% | 95-100% | Easy ⭐ |
+| Adapter | ~3-5% | 90-98% | Medium |
+| Prefix Tuning | ~0.1% | 85-95% | Hard |
+| Prompt Tuning | ~0.01% | 80-90% | Hard |
+
+**For your project:** LoRA is the sweet spot! ⭐
+
+---
+
+## 📊 Which Methods Should YOU Learn?
+
+### **Tier 1: Essential (Must Learn)** ⭐⭐⭐
+
+1. **Causal Language Modeling (CLM)** - Foundation of everything
+2. **Supervised Fine-Tuning (SFT)** - Practical adaptation
+3. **LoRA/QLoRA** - Efficient fine-tuning (industry standard)
+4. **Knowledge Distillation** - Production deployment
+5. **Instruction Tuning** - Make models follow commands
+
+**Why:** These cover 80% of real LLM work
+
+---
+
+### **Tier 2: Very Useful (Should Learn)** ⭐⭐
+
+6. **Contrastive Learning** - Embeddings, retrieval, RAG
+7. **Chain-of-Thought Tuning** - Reasoning capabilities
+8. **DPO** - Modern alignment (simpler than RLHF)
+9. **Quantization** - Deployment efficiency
+
+**Why:** Growing in importance, strong portfolio value
+
+---
+
+### **Tier 3: Advanced (Optional)** ⭐
+
+10. **RLHF (PPO)** - Complex alignment
+11. **Self-Instruct** - Data generation
+12. **Constitutional AI** - Safety alignment
+13. **RLAIF** - Scalable feedback
+14. **Multi-Task Learning** - Research/specialized
+
+**Why:** Cutting-edge, but not needed for most jobs
+
+---
+
+### **Tier 4: Historical Context (Understand, Don't Implement)**
+
+15. **MLM (BERT-style)** - Encoder models (less common now)
+16. **ELECTRA** - Superseded by CLM
+17. **NSP** - Deprecated (didn't help much)
+
+**Why:** Good to know, but modern LLMs don't use them
+
+---
+
+## 🎯 Updated Learning Path with These Methods
+
+**Your Balanced Path (Path 2) now includes:**
+
+```
+Week 1: Causal LM Fine-Tuning (SFT)
+  ├─ Learn CLM basics
+  ├─ Instruction tuning
+  └─ Evaluation
+
+Week 2: Efficient Training
+  ├─ LoRA/QLoRA
+  ├─ Knowledge Distillation ⭐
+  └─ Compare efficiency methods
+
+Week 3: Advanced Training
+  ├─ Chain-of-Thought tuning ⭐
+  ├─ Contrastive learning basics
+  └─ Quantization
+
+Week 4: Inference & Serving
+  ├─ Flash Attention
+  ├─ vLLM
+  └─ Benchmarking
+
+Week 5: Optional Advanced
+  ├─ DPO (if interested in alignment)
+  ├─ Self-Instruct experiments
+  └─ Your custom project
+```
+
+**Total methods covered: 8-10** (all the important ones!)
 
 ---
 
