@@ -71,14 +71,14 @@ app = modal.App(name="vllm-qwen-inference")
 @app.function(
     image=vllm_image,
     gpu=f"H100:{N_GPU}",
-    keep_warm=SCALEDOWN_MINUTES * MINUTES,
+    min_containers=1,
     timeout=TIMEOUT_MINUTES * MINUTES,
-    allow_concurrent_inputs=16,
     volumes={
         "/root/.cache/huggingface": hf_cache_vol,
         "/root/.cache/vllm": vllm_cache_vol,
     },
 )
+@modal.concurrent(max_inputs=16)
 @modal.web_server(port=VLLM_PORT, startup_timeout=TIMEOUT_MINUTES * MINUTES)
 def serve():
     """
@@ -133,11 +133,12 @@ def serve():
     image=modal.Image.debian_slim().pip_install("openai==1.76.0", "requests==2.32.3"),
     timeout=5 * MINUTES,
 )
-def test_inference(content: str = None):
+def test_inference(server_url: str = None, content: str = None):
     """
     Test the inference server with sample requests.
     
     Args:
+        server_url: URL of the vLLM server (e.g., http://serve-service:8000)
         content: Optional custom content to test
     """
     import time
@@ -148,8 +149,9 @@ def test_inference(content: str = None):
     print("⏳ Waiting for server to start...")
     time.sleep(10)
     
-    # Get the server URL from Modal
-    server_url = f"http://localhost:{VLLM_PORT}"
+    # Use provided server URL or default to localhost
+    if not server_url:
+        server_url = f"http://localhost:{VLLM_PORT}"
     
     print(f"\n✅ Testing inference server at {server_url}\n")
     
@@ -173,6 +175,7 @@ def test_inference(content: str = None):
     try:
         client = OpenAI(
             base_url=f"{server_url}/v1",
+            api_key="not-needed",  # vLLM doesn't require a real API key
         )
         
         test_content = content or "You are a helpful assistant. Explain quantum computing in 2 sentences."
@@ -199,6 +202,7 @@ def test_inference(content: str = None):
     try:
         client = OpenAI(
             base_url=f"{server_url}/v1",
+            api_key="not-needed",  # vLLM doesn't require a real API key
         )
         
         print("Streaming response:\n")
@@ -245,6 +249,43 @@ if __name__ == "__main__":
         2. Run tests (local):
            modal run vllm_inference.py test
            modal run vllm_inference.py test "Your custom prompt here"
+        
+        Environment Variables:
+        - VLLM_MODEL_NAME          Model to deploy (default: Qwen/Qwen3-0.6B)
+        - VLLM_MODEL_REVISION      Model revision (default: latest)
+        - VLLM_N_GPU               Number of GPUs (default: 1)
+        - VLLM_FAST_BOOT           Enable fast startup (default: true)
+        - VLLM_PORT                Server port (default: 8000)
+        - VLLM_SCALEDOWN_MINUTES   Keep-alive minutes (default: 10)
+        - VLLM_TIMEOUT_MINUTES     Startup timeout (default: 10)
+        """)
+
+
+@app.local_entrypoint()
+def cli(test: bool = False, prompt: Optional[str] = None):
+    """
+    CLI entrypoint for Modal app.
+    
+    Usage:
+        modal run vllm_inference.py --test
+        modal run vllm_inference.py --test --prompt "Your custom prompt"
+    """
+    if test:
+        # When testing, we need to pass the serve function's web URL
+        # The serve function is deployed as a web server
+        # We'll use the web_url property to get the served URL
+        server_url = serve.web_url
+        test_inference.remote(server_url=server_url, content=prompt)
+    else:
+        print("""
+        Usage:
+        
+        1. Deploy the server:
+           modal deploy vllm_inference.py
+        
+        2. Run tests:
+           modal run vllm_inference.py --test
+           modal run vllm_inference.py --test --prompt "Your custom prompt here"
         
         Environment Variables:
         - VLLM_MODEL_NAME          Model to deploy (default: Qwen/Qwen3-0.6B)
