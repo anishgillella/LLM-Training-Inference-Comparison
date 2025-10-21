@@ -25,7 +25,6 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://your-workspace--vllm-qwen-inference-serve.modal.run/v1",
-    api_key="sk-vllm-test-key-12345",
 )
 
 response = client.chat.completions.create(
@@ -43,8 +42,108 @@ print(response.choices[0].message.content)
 ✅ **Fast Startup** - FAST_BOOT enabled for quick cold starts (1-2 min)  
 ✅ **Persistent Caching** - Model weights cached across deployments  
 ✅ **Streaming Support** - Server-Sent Events for real-time responses  
-✅ **API Authentication** - Basic API key authentication  
 ✅ **Environment Configuration** - All settings via environment variables  
+
+## How vLLM Makes Inference Fast
+
+vLLM uses several optimization techniques to serve language models **3-10x faster** than traditional methods:
+
+### **1. Dynamic Batching**
+**The Problem:** Without batching, the GPU processes one request at a time and sits idle waiting for the next one.
+
+**The Solution:** vLLM groups multiple incoming requests together and processes them simultaneously.
+
+```
+Traditional Serving:
+  Request 1 → [Generate tokens] → Done (GPU idle)
+  Request 2 → [Generate tokens] → Done (GPU idle)
+  Request 3 → [Generate tokens] → Done (GPU idle)
+  ⏱️ Total time: ~30 seconds
+
+vLLM Dynamic Batching:
+  Request 1 ─┐
+  Request 2 ─┼→ [Generate tokens together] → Done
+  Request 3 ─┘
+  ⏱️ Total time: ~12 seconds (3x faster!)
+```
+
+### **2. KV-Cache Optimization**
+**The Problem:** When generating tokens one-by-one, the model recalculates the same information repeatedly (wasteful).
+
+**The Solution:** vLLM caches Key and Value computations from previous tokens, so the model only computes new tokens.
+
+```
+Without KV-Cache (for 100-token response):
+  Token 1:   Compute 100 times ❌
+  Token 2:   Compute 100 times ❌
+  Token 3:   Compute 100 times ❌
+  ...Result: Massive wasted computation
+
+With KV-Cache (for 100-token response):
+  Token 1:   Compute 1 time ✅
+  Token 2:   Compute 1 time ✅
+  Token 3:   Compute 1 time ✅
+  ...Result: Reuse cached computations, 10x faster!
+```
+
+**Memory usage:** Trades a small amount of GPU memory for much faster generation.
+
+### **3. Flash Attention**
+**The Problem:** The traditional attention mechanism in transformers is slow and uses lots of memory.
+
+**The Solution:** Flash Attention is an optimized algorithm that does the same computation in fewer GPU operations.
+
+```
+Traditional Attention:
+  Load data from GPU memory → Compute attention → Write back to memory
+  (Multiple slow round-trips to memory)
+
+Flash Attention:
+  Fuse all operations together in one GPU kernel
+  (Minimizes memory round-trips)
+  
+Result: Same output, 2-3x faster computation!
+```
+
+**In simple terms:** It's like optimizing a recipe—same ingredients, same result, but fewer steps and less cleanup time.
+
+### **4. Tensor Parallelism**
+**The Problem:** Large models (7B+ parameters) might not fit on a single GPU's memory.
+
+**The Solution:** vLLM splits the model across multiple GPUs. Each GPU handles a piece of the computation.
+
+```
+Single GPU (Memory limit reached):
+  [GPU 1: Full model] ❌ Out of memory!
+
+Tensor Parallelism (2 GPUs):
+  [GPU 1: Model layers 1-50] ─┐
+                              ├→ Coordinated inference
+  [GPU 2: Model layers 51-100]─┘
+  ✅ Works! Slightly slower but enables bigger models
+```
+
+**When to use:**
+- `VLLM_N_GPU=1` for models ≤7B (default, fastest)
+- `VLLM_N_GPU=2` for models 7B-13B
+- `VLLM_N_GPU=4+` for models 30B+
+
+---
+
+**How they work together:**
+```
+Incoming Requests
+        ↓
+   Dynamic Batching (group requests)
+        ↓
+   KV-Cache (reuse computations)
+        ↓
+   Flash Attention (optimize GPU operations)
+        ↓
+   Tensor Parallelism (split across GPUs if needed)
+        ↓
+   Fast Response!
+```
 
 ## Architecture
 
@@ -70,7 +169,6 @@ export VLLM_MODEL_NAME="Qwen/Qwen3-0.6B"           # Model from HuggingFace Hub
 export VLLM_MODEL_REVISION="main"                  # Optional: specific revision
 
 # Server Configuration
-export VLLM_API_KEY="sk-your-secure-api-key"      # API key (CHANGE IN PRODUCTION)
 export VLLM_N_GPU=1                               # Number of H100 GPUs
 export VLLM_FAST_BOOT=true                        # Enable fast startup
 export VLLM_PORT=8000                             # Server port
@@ -105,7 +203,6 @@ modal deploy vllm_inference.py
 ### Deploy with Custom Model
 ```bash
 VLLM_MODEL_NAME="Qwen/Qwen3-1B" \
-VLLM_API_KEY="sk-prod-key-12345" \
 modal deploy vllm_inference.py
 ```
 
@@ -129,7 +226,6 @@ from openai import OpenAI
 # Initialize client
 client = OpenAI(
     base_url="https://your-endpoint/v1",
-    api_key="sk-vllm-test-key-12345",
 )
 
 # Non-streaming
@@ -165,7 +261,6 @@ load_dotenv()
 
 client = OpenAI(
     base_url=f"{os.getenv('VLLM_BASE_URL')}/v1",
-    api_key=os.getenv('VLLM_API_KEY'),
 )
 ```
 
@@ -173,7 +268,6 @@ client = OpenAI(
 ```bash
 curl -X POST \
   https://your-endpoint/v1/chat/completions \
-  -H "Authorization: Bearer sk-vllm-test-key-12345" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3-0.6B",
@@ -185,8 +279,6 @@ curl -X POST \
 ### Example Client Script
 ```bash
 export VLLM_BASE_URL="https://your-endpoint"
-export VLLM_API_KEY="sk-vllm-test-key-12345"
-
 python client_example.py --stream
 ```
 
@@ -266,16 +358,6 @@ export VLLM_N_GPU=2               # Use more GPUs
 # Or reduce concurrent requests in vllm_inference.py (max_inputs)
 ```
 
-### API Key Authentication Fails
-```bash
-# Make sure API key matches:
-import os
-print(f"API Key: {os.getenv('VLLM_API_KEY')}")
-
-# Include Bearer token in requests:
-headers = {"Authorization": f"Bearer {api_key}"}
-```
-
 ### Container Startup Timeout
 ```bash
 # Increase timeout:
@@ -284,19 +366,20 @@ export VLLM_TIMEOUT_MINUTES=20
 
 ## Production Deployment
 
-### Secure API Key Management
+### Environment-Specific Configuration
 ```bash
-# Bad ❌
-API_KEY = "sk-prod-key-12345"
+# Development
+export VLLM_MODEL_NAME="Qwen/Qwen3-0.6B"
 
-# Good ✅
-API_KEY = os.getenv("VLLM_API_KEY")
+# Production
+export VLLM_MODEL_NAME="Qwen/Qwen3-7B"
+export VLLM_SCALEDOWN_MINUTES=5
 ```
 
 ### Use `.env.local` for Development
 ```bash
 # Create .env.local (not version controlled)
-echo "VLLM_API_KEY=sk-dev-key-12345" > .env.local
+echo "VLLM_MODEL_NAME=Qwen/Qwen3-0.6B" > .env.local
 ```
 
 ### Environment-Specific Keys
@@ -306,15 +389,6 @@ export VLLM_API_KEY="sk-dev-key-..."
 
 # Production
 export VLLM_API_KEY="sk-prod-key-..."
-```
-
-### Modal Secrets (Advanced)
-```bash
-# Create Modal secret
-modal secret create vllm-secrets VLLM_API_KEY="sk-prod-key-12345"
-
-# Reference in vllm_inference.py (advanced usage)
-@app.function(secrets=[modal.Secret.from_name("vllm-secrets")])
 ```
 
 ## Common Commands

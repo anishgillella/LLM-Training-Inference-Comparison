@@ -3,16 +3,14 @@
 Example client for interacting with the vLLM OpenAI-compatible inference server.
 
 Usage:
-    python client_example.py <server_url> <api_key>
+    python client_example.py <server_url>
     
 Environment Variables:
     VLLM_BASE_URL   - Server URL (e.g., https://your-endpoint)
-    VLLM_API_KEY    - API key for authentication
     VLLM_MODEL_NAME - Model name (default: Qwen/Qwen3-0.6B)
 
 Example:
     export VLLM_BASE_URL=https://your-workspace--vllm-qwen-inference-serve.modal.run
-    export VLLM_API_KEY=sk-vllm-test-key-12345
     python client_example.py
 """
 
@@ -25,7 +23,6 @@ from openai import OpenAI
 def main():
     parser = argparse.ArgumentParser(description="vLLM Client Example")
     parser.add_argument("server_url", nargs="?", help="Base URL of the vLLM server (e.g., https://your-endpoint)")
-    parser.add_argument("--api-key", help="API key for authentication")
     parser.add_argument("--model", help="Model name to use")
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature (0-2)")
     parser.add_argument("--max-tokens", type=int, default=200, help="Maximum tokens to generate")
@@ -35,7 +32,6 @@ def main():
     
     # Get values from arguments or environment variables
     server_url = args.server_url or os.getenv("VLLM_BASE_URL")
-    api_key = args.api_key or os.getenv("VLLM_API_KEY", "sk-vllm-test-key-12345")
     model = args.model or os.getenv("VLLM_MODEL_NAME", "Qwen/Qwen3-0.6B")
     
     if not server_url:
@@ -48,12 +44,10 @@ def main():
     # Initialize the OpenAI client pointing to our vLLM server
     client = OpenAI(
         base_url=f"{server_url}/v1",
-        api_key=api_key,
     )
     
     print(f"🔗 Connected to: {server_url}")
     print(f"🤖 Model: {model}")
-    print(f"🔑 API Key: {api_key[:20]}...")
     print("-" * 60)
     
     # Get user prompt
@@ -104,11 +98,9 @@ def example_non_streaming():
     load_dotenv()
     
     server_url = os.getenv("VLLM_BASE_URL", "https://your-workspace--vllm-qwen-inference-serve.modal.run")
-    api_key = os.getenv("VLLM_API_KEY", "sk-vllm-test-key-12345")
     
     client = OpenAI(
         base_url=f"{server_url}/v1",
-        api_key=api_key,
     )
     
     response = client.chat.completions.create(
@@ -130,11 +122,9 @@ def example_streaming():
     load_dotenv()
     
     server_url = os.getenv("VLLM_BASE_URL", "https://your-workspace--vllm-qwen-inference-serve.modal.run")
-    api_key = os.getenv("VLLM_API_KEY", "sk-vllm-test-key-12345")
     
     client = OpenAI(
         base_url=f"{server_url}/v1",
-        api_key=api_key,
     )
     
     stream = client.chat.completions.create(
@@ -157,11 +147,9 @@ def example_text_completion():
     load_dotenv()
     
     server_url = os.getenv("VLLM_BASE_URL", "https://your-workspace--vllm-qwen-inference-serve.modal.run")
-    api_key = os.getenv("VLLM_API_KEY", "sk-vllm-test-key-12345")
     
     client = OpenAI(
         base_url=f"{server_url}/v1",
-        api_key=api_key,
     )
     
     response = client.completions.create(
@@ -177,12 +165,11 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         print("📖 vLLM Client Example\n")
         print("Usage:")
-        print("  python client_example.py <server_url> [--api-key KEY] [--model MODEL] [--stream]\n")
+        print("  python client_example.py <server_url> [--model MODEL] [--stream]\n")
         print("Example:")
-        print("  python client_example.py https://your-endpoint --api-key sk-vllm-test-key-12345\n")
+        print("  python client_example.py https://your-endpoint\n")
         print("Or with environment variables:")
         print("  export VLLM_BASE_URL=https://your-endpoint")
-        print("  export VLLM_API_KEY=sk-vllm-test-key-12345")
         print("  python client_example.py\n")
         print("View example functions in the source code:")
         print("  - example_non_streaming()")

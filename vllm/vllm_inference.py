@@ -13,9 +13,6 @@ VLLM_PORT = int(os.getenv("VLLM_PORT", "8000"))
 N_GPU = int(os.getenv("VLLM_N_GPU", "1"))
 FAST_BOOT = os.getenv("VLLM_FAST_BOOT", "true").lower() == "true"
 
-# API Key for basic authentication (IMPORTANT: Set via environment variable in production!)
-API_KEY = os.getenv("VLLM_API_KEY", "sk-vllm-test-key-12345")
-
 # Timing constants
 MINUTES = 60
 SCALEDOWN_MINUTES = int(os.getenv("VLLM_SCALEDOWN_MINUTES", "10"))
@@ -28,7 +25,6 @@ print(f"""
 ╚════════════════════════════════════════════════════════════╝
   Model:              {MODEL_NAME}
   Model Revision:     {MODEL_REVISION or "latest"}
-  API Key:            {API_KEY[:20]}...
   GPU Count:          {N_GPU}
   FAST_BOOT:          {FAST_BOOT}
   Port:               {VLLM_PORT}
@@ -43,7 +39,7 @@ print(f"""
 vllm_image = (
     modal.Image.from_registry("nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.12")
     .entrypoint([])
-    .uv_pip_install(
+    .pip_install(
         "vllm==0.10.2",
         "huggingface_hub[hf_transfer]==0.35.0",
         "flashinfer-python==0.3.1",
@@ -75,14 +71,14 @@ app = modal.App(name="vllm-qwen-inference")
 @app.function(
     image=vllm_image,
     gpu=f"H100:{N_GPU}",
-    scaledown_window=SCALEDOWN_MINUTES * MINUTES,
+    keep_warm=SCALEDOWN_MINUTES * MINUTES,
     timeout=TIMEOUT_MINUTES * MINUTES,
+    allow_concurrent_inputs=16,
     volumes={
         "/root/.cache/huggingface": hf_cache_vol,
         "/root/.cache/vllm": vllm_cache_vol,
     },
 )
-@modal.concurrent(max_inputs=16)
 @modal.web_server(port=VLLM_PORT, startup_timeout=TIMEOUT_MINUTES * MINUTES)
 def serve():
     """
@@ -117,9 +113,6 @@ def serve():
     # Tensor parallelism for multi-GPU (if N_GPU > 1)
     cmd.extend(["--tensor-parallel-size", str(N_GPU)])
     
-    # Enable API key authentication via environment variable
-    os.environ["VLLM_API_KEY"] = API_KEY
-    
     print(f"🚀 Starting vLLM server with command:")
     print(f"   {' '.join(cmd)}")
     print(f"📊 Configuration:")
@@ -127,7 +120,6 @@ def serve():
     print(f"   GPU: H100 x {N_GPU}")
     print(f"   FAST_BOOT: {FAST_BOOT}")
     print(f"   Port: {VLLM_PORT}")
-    print(f"   API Key: {API_KEY[:20]}...")
     
     # Run vLLM server
     subprocess.run(cmd, check=True)
@@ -158,17 +150,15 @@ def test_inference(content: str = None):
     
     # Get the server URL from Modal
     server_url = f"http://localhost:{VLLM_PORT}"
-    api_key = API_KEY
     
-    print(f"\n✅ Testing inference server at {server_url}")
-    print(f"🔑 Using API key: {api_key[:20]}...\n")
+    print(f"\n✅ Testing inference server at {server_url}\n")
     
     # Test 1: Health check
     print("Test 1: Health Check")
     print("-" * 50)
     try:
         # vLLM doesn't have a /health endpoint by default, so we'll test with a model endpoint
-        response = requests.get(f"{server_url}/v1/models", headers={"Authorization": f"Bearer {api_key}"})
+        response = requests.get(f"{server_url}/v1/models")
         if response.status_code == 200:
             print("✓ Server is healthy")
             print(f"  Response: {response.json()}\n")
@@ -183,7 +173,6 @@ def test_inference(content: str = None):
     try:
         client = OpenAI(
             base_url=f"{server_url}/v1",
-            api_key=api_key,
         )
         
         test_content = content or "You are a helpful assistant. Explain quantum computing in 2 sentences."
@@ -210,7 +199,6 @@ def test_inference(content: str = None):
     try:
         client = OpenAI(
             base_url=f"{server_url}/v1",
-            api_key=api_key,
         )
         
         print("Streaming response:\n")
@@ -261,7 +249,6 @@ if __name__ == "__main__":
         Environment Variables:
         - VLLM_MODEL_NAME          Model to deploy (default: Qwen/Qwen3-0.6B)
         - VLLM_MODEL_REVISION      Model revision (default: latest)
-        - VLLM_API_KEY             API key for auth (default: sk-vllm-test-key-12345)
         - VLLM_N_GPU               Number of GPUs (default: 1)
         - VLLM_FAST_BOOT           Enable fast startup (default: true)
         - VLLM_PORT                Server port (default: 8000)
